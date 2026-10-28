@@ -79,3 +79,29 @@ describe("pipeline on the generator's default data", () => {
     }
   });
 });
+
+describe("edge cases from review", () => {
+  const dates = (sample.dates as string[]).slice(0, 19);
+  it("keeps the weekly profile on short series where a whole weekday is anomalous", () => {
+    const v = (sample.mines as Record<string, number[]>)["Fiorina 151"].slice(0, 19);
+    const a = analyzeSeries("F", dates, v, { ...DEFAULT_DETECTION, degree: 1 });
+    // every Sunday carries an outlier-sized weight; the Sunday effect must still be estimated (~0.43)
+    expect(a.weekday[6]).toBeGreaterThan(0.3);
+    expect(a.weekday[6]).toBeLessThan(0.6);
+    expect(a.anomalies.every((i) => new Date(dates[i] + "T00:00:00Z").getUTCDay() !== 0)).toBe(true);
+  });
+  it("does not flag a constant or perfectly regular series", () => {
+    const d = sample.dates as string[];
+    const flat = analyzeSeries("flat", d, d.map(() => 50), DEFAULT_DETECTION);
+    expect(flat.flags.flat()).toHaveLength(0);
+    const f = [1, 1, 1, 1, 1, 0.8, 0.4];
+    const regular = d.map((x, i) => Math.round(50 * f[(new Date(x + "T00:00:00Z").getUTCDay() + 6) % 7] * 1.02 ** i * 100) / 100);
+    expect(analyzeSeries("regular", d, regular, DEFAULT_DETECTION).anomalies).toHaveLength(0);
+  });
+  it("survives an all-zero mine", () => {
+    const d = sample.dates as string[];
+    const z = analyzeSeries("zero", d, d.map(() => 0), DEFAULT_DETECTION);
+    expect(z.anomalies).toHaveLength(0);
+    expect(z.expected.every(Number.isFinite)).toBe(true);
+  });
+});

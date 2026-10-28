@@ -145,8 +145,9 @@ export function estimateBaseline(dates: readonly string[], y: readonly number[],
   const z = y.map((v) => Math.log(Math.max(v, floor)));
   const wds = dates.map(weekdayOf);
   const present = [...new Set(wds)].sort((a, b) => a - b);
+  // A weekly profile needs at least two of each weekday; keep >= 6 residual degrees of freedom.
   const dummies = s.seasonal && n >= 14 ? present.slice(1) : [];
-  const d = s.detrend ? Math.max(0, Math.min(s.degree, n - dummies.length - 4)) : 0;
+  const d = s.detrend ? Math.max(0, Math.min(s.degree, n - dummies.length - 7)) : 0;
   const X = y.map((_, i) => [...powers(scaleIndex(i, n), d), ...dummies.map((w) => (wds[i] === w ? 1 : 0))]);
   const { coef } = robustLstsq(X, z);
   const raw = new Array<number>(7).fill(1);
@@ -203,11 +204,19 @@ export function analyzeSeries(name: string, dates: readonly string[], values: re
   const wd = dates.map((d) => weekday[weekdayOf(d)]);
   const adjusted = y.map((v, i) => v / wd[i]);
   const expected = level.map((l, i) => l * wd[i]);
-  const basis = raw ? y : y.map((v, i) => v / expected[i] - 1);
+  // Snap floating-point noise to zero so a perfectly regular series has nothing to flag.
+  const basis = raw ? y : y.map((v, i) => (Math.abs(v / expected[i] - 1) < 1e-9 ? 0 : v / expected[i] - 1));
   const basisLabel = raw ? "daily output" : "relative deviation from expected";
   const toUnits = (b: number, i: number) => (raw ? b : (1 + b) * expected[i]);
 
   const flags: Flag[][] = y.map(() => []);
+  // A flag needs a material effect: at least 1 % and 0.01 t away from the expected level
+  // (the generator rounds to 0.01 t, so smaller gaps are rounding, not anomalies).
+  const center = raw ? median(y) : 0;
+  const material = (i: number) => {
+    const ref = raw ? center : expected[i];
+    return Math.abs(y[i] - ref) >= Math.max(0.01, 0.01 * Math.abs(ref));
+  };
 
   // IQR rule
   const q1 = quantile(basis, 0.25);
@@ -215,6 +224,7 @@ export function analyzeSeries(name: string, dates: readonly string[], values: re
   const iqr = q3 - q1;
   const fences = { lo: q1 - s.iqrK * iqr, hi: q3 + s.iqrK * iqr };
   basis.forEach((b, i) => {
+    if (!material(i)) return;
     if (iqr > 0 && b < fences.lo) flags[i].push({ test: "iqr", dir: -1, score: (fences.lo - b) / iqr });
     else if (iqr > 0 && b > fences.hi) flags[i].push({ test: "iqr", dir: 1, score: (b - fences.hi) / iqr });
   });
@@ -224,7 +234,7 @@ export function analyzeSeries(name: string, dates: readonly string[], values: re
   const zs = s.zRobust ? 1.4826 * median(basis.map((b) => Math.abs(b - zm))) : sd(basis);
   basis.forEach((b, i) => {
     const z = zs > 0 ? (b - zm) / zs : 0;
-    if (Math.abs(z) > s.zThreshold) flags[i].push({ test: "z", dir: z > 0 ? 1 : -1, score: z });
+    if (material(i) && Math.abs(z) > s.zThreshold) flags[i].push({ test: "z", dir: z > 0 ? 1 : -1, score: z });
   });
 
   // Distance (percent) from moving average
@@ -238,7 +248,7 @@ export function analyzeSeries(name: string, dates: readonly string[], values: re
 
   // Grubbs' test (iterative, two-sided)
   const g = grubbs(basis, s.grubbsAlpha, s.grubbsMax);
-  for (const o of g.outliers) flags[o.i].push({ test: "grubbs", dir: basis[o.i] > zm ? 1 : -1, score: o.g });
+  for (const o of g.outliers) if (material(o.i)) flags[o.i].push({ test: "grubbs", dir: basis[o.i] > zm ? 1 : -1, score: o.g });
 
   const counts = { iqr: 0, z: 0, ma: 0, grubbs: 0 } as Record<TestId, number>;
   flags.forEach((f) => f.forEach((x) => counts[x.test]++));
@@ -278,10 +288,11 @@ const DAY = 86400000;
 const toTime = (iso: string) => Date.parse(iso + "T00:00:00Z");
 
 /** Days on which a configured generator event has a noticeable effect (bell weight >= 0.1). */
-function eventWindow(ev: GeneratorEvent): [number, number] {
+export function eventWindow(ev: GeneratorEvent): [number, number] {
   const start = toTime(ev.day);
   const dur = Math.max(1, ev.duration || 1);
-  if (ev.shape === "Flat") return [start, start + (dur - 1) * DAY];
+  // The generator applies a Flat event while day < start + duration.
+  if (ev.shape === "Flat") return [start, start + (Math.ceil(dur) - 1) * DAY];
   const center = start + ((dur - 1) / 2) * DAY;
   const half = 0.911 * dur * DAY;
   return [center - half, center + half];

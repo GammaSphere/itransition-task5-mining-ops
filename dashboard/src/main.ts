@@ -63,7 +63,9 @@ let analysis: Analysis | null = null;
 let fingerprint = "";
 let lastChange: Date | null = null;
 let busy = false;
-let selectedEpisode: number | null = null;
+let selectedEpisode: string | null = null;
+let pending = false;
+const episodeKey = (e: Episode) => `${e.series}|${e.start}`;
 
 const sheetId = () => settings.sheetId || DEFAULT_SHEET_ID || null;
 
@@ -106,7 +108,10 @@ function toast(msg: string) {
 // Data -----------------------------------------------------------------------------------------------
 
 async function refresh(manual = false) {
-  if (busy) return;
+  if (busy) {
+    pending = true;
+    return;
+  }
   busy = true;
   renderSource();
   try {
@@ -119,6 +124,12 @@ async function refresh(manual = false) {
         ds = await loadSheet(id);
       } catch (e) {
         const reason = e instanceof SheetError ? e.message : "The spreadsheet could not be reached.";
+        if (dataset?.source === "sheet" && dataset.sheetId === id) {
+          // Keep the live data already on screen; a passing network error is not a data change.
+          dataset = { ...dataset, warning: `${reason} Showing the data read at ${clock(dataset.fetchedAt)}.` };
+          if (manual) toast("The spreadsheet could not be read. Showing the last data.");
+          return;
+        }
         ds = await loadSample(`${reason} Showing the offline sample instead.`);
       }
     }
@@ -135,15 +146,22 @@ async function refresh(manual = false) {
     busy = false;
     renderSource();
     $("app").classList.remove("loading");
+    if (pending) {
+      pending = false;
+      refresh(true);
+    }
   }
 }
 
 function recompute() {
   if (!dataset) return;
   analysis = runAnalysis(dataset, settings.detect);
+  const current = new Set(analysis.mines.map((a) => a.name));
+  settings.colors = Object.fromEntries(Object.entries(settings.colors).filter(([k]) => current.has(k)));
+  settings.view.hidden = settings.view.hidden.filter((h) => current.has(h));
   const names = [...analysis.mines.map((a) => a.name), TOTAL];
   if (!names.includes(settings.view.focus)) settings.view.focus = names[0];
-  if (selectedEpisode !== null && !analysis.episodes.some((e) => e.id === selectedEpisode)) selectedEpisode = null;
+  if (selectedEpisode !== null && !analysis.episodes.some((e) => episodeKey(e) === selectedEpisode)) selectedEpisode = null;
   save();
   renderAll();
 }
@@ -410,7 +428,7 @@ function renderAnomalies() {
     <th>Peak, t</th><th>Expected, t</th><th>Deviation</th><th class="l">Tests</th><th class="l">Generator event</th></tr></thead>`;
   const rows = a.episodes.map((e) => {
     const days = e.end - e.start + 1;
-    return `<tr class="clickable ${e.id === selectedEpisode ? "selected" : ""}" data-id="${e.id}" tabindex="0">
+    return `<tr class="clickable ${episodeKey(e) === selectedEpisode ? "selected" : ""}" data-id="${e.id}" tabindex="0">
       <td class="l">A${e.id}</td>
       <td class="l name"><span class="swatch" style="--c:${colorFor(e.series)}"></span>${esc(e.series)}</td>
       <td class="l"><span class="dir">${e.dir > 0 ? "▲ Spike" : "▼ Drop"}</span></td>
@@ -423,7 +441,7 @@ function renderAnomalies() {
   const pick = (tr: HTMLElement | null) => {
     if (!tr) return;
     const ep = a.episodes.find((x) => x.id === Number(tr.dataset.id))!;
-    selectedEpisode = ep.id;
+    selectedEpisode = episodeKey(ep);
     settings.view.focus = ep.series;
     renderAnomalies();
     renderFocus();
@@ -526,8 +544,15 @@ const dialog = $<HTMLDialogElement>("source-dialog");
 $("btn-source").onclick = () => {
   const id = sheetId();
   $<HTMLInputElement>("source-input").value = id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : "";
+  dialog.returnValue = "";
   dialog.showModal();
 };
+$("source-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    dialog.close("ok");
+  }
+});
 dialog.addEventListener("close", () => {
   if (dialog.returnValue === "sample") {
     settings.useSample = true;

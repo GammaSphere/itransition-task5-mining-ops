@@ -36,7 +36,8 @@ export function robustLstsq(X: readonly number[][], y: readonly number[], iterat
     if (!(mad > 1e-12)) break;
     weights = res.map((r) => {
       const u = r / (4.685 * mad);
-      return Math.abs(u) < 1 ? (1 - u * u) ** 2 : 0;
+      // Floor > 0: a column (e.g. one weekday) whose days are all outliers must not drop out of the fit.
+      return Math.max(1e-3, Math.abs(u) < 1 ? (1 - u * u) ** 2 : 0);
     });
     coef = lstsq(X, y, weights);
   }

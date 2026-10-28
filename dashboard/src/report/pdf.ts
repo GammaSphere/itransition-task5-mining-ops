@@ -46,6 +46,17 @@ const n2 = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : "n/a");
 const pc = (x: number, d = 0) => (Number.isFinite(x) ? `${x >= 0 ? "+" : "-"}${Math.abs(x).toFixed(d)}%` : "n/a");
 const testShort = (id: string) => (id === "grubbs" ? "Grubbs" : TESTS.find((t) => t.id === id)!.short);
 
+const ASCII: Record<string, string> = { "\u2013": "-", "\u2014": "-", "\u2212": "-", "\u2022": "*", "\u2026": "...", "\u2018": "'", "\u2019": "'", "\u201C": '"', "\u201D": '"', "\u00D7": "x" };
+
+/** Helvetica in jsPDF only covers WinAnsi: strip accents and replace anything else. */
+export function pdfSafe(s: string): string {
+  return s
+    .replace(/[\u2013\u2014\u2212\u2022\u2026\u2018\u2019\u201C\u201D\u00D7]/g, (c) => ASCII[c])
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "?");
+}
+
 /** Renders an ECharts option offscreen and returns a PNG data URL. */
 async function snapshot(option: Option, width: number, height: number): Promise<string> {
   const el = document.createElement("div");
@@ -67,6 +78,10 @@ class Report {
   y = TOP;
 
   constructor(readonly title: string, readonly subtitle: string) {
+    // Every string reaches the page through doc.text (autoTable included), so sanitize there once.
+    const text = this.doc.text.bind(this.doc) as (...args: unknown[]) => jsPDF;
+    (this.doc as unknown as { text: (...args: unknown[]) => jsPDF }).text = (t: unknown, ...rest: unknown[]) =>
+      text(typeof t === "string" ? pdfSafe(t) : Array.isArray(t) ? t.map((x) => (typeof x === "string" ? pdfSafe(x) : x)) : t, ...rest);
     this.doc.setFont("helvetica", "normal");
     this.doc.setLineHeightFactor(1.35);
   }
@@ -207,8 +222,9 @@ function findings(inp: ReportInput): string[] {
   out.push(`Total output over ${a.dates.length} days was ${n0(t.sum)} t, ${n1(t.mean)} t per day on average. The underlying level of total output changed by ${pc(a.growth * 100, 1)} per day.`);
   if (a.mines.length > 1) {
     const top = [...a.mines].sort((x, y) => y.summary.mean - x.summary.mean)[0];
-    const vol = [...a.mines].sort((x, y) => y.summary.cv - x.summary.cv)[0];
-    out.push(`${top.name} produced the most (mean ${n1(top.summary.mean)} t per day). ${vol.name} was the most variable (coefficient of variation ${(vol.summary.cv * 100).toFixed(0)}%).`);
+    const vol = a.mines.filter((m) => Number.isFinite(m.summary.cv)).sort((x, y) => y.summary.cv - x.summary.cv)[0];
+    out.push(`${top.name} produced the most (mean ${n1(top.summary.mean)} t per day).` +
+      (vol ? ` ${vol.name} was the most variable (coefficient of variation ${(vol.summary.cv * 100).toFixed(0)}%).` : ""));
   }
   const prof = a.profiles.get(TOTAL);
   if (prof) {
@@ -322,7 +338,7 @@ export async function buildReport(inp: ReportInput): Promise<void> {
   r.para("Daily output in tonnes. Quartiles use linear interpolation (Excel QUARTILE.INC); the standard deviation is the sample deviation (n - 1).", { size: 8.5 });
   const statRows = seriesAll.map((s) => {
     const m = s.summary;
-    return [s.name, n1(m.mean), n1(m.sd), n1(m.median), n1(m.q1), n1(m.q3), n1(m.iqr), n1(m.min), n1(m.max), `${(m.cv * 100).toFixed(0)}%`];
+    return [s.name, n1(m.mean), n1(m.sd), n1(m.median), n1(m.q1), n1(m.q3), n1(m.iqr), n1(m.min), n1(m.max), Number.isFinite(m.cv) ? `${(m.cv * 100).toFixed(0)}%` : "n/a"];
   });
   r.table([["Series", "Mean", "Std dev", "Median", "Q1", "Q3", "IQR", "Min", "Max", "CV"]], statRows, {
     columnStyles: { 0: { halign: "left", fontStyle: "bold" } },

@@ -1,5 +1,5 @@
 import type { Dataset } from "../data/sheets";
-import { analyzeSeries, episodesOf, estimateBaseline, growthRate, type DetectionSettings, type Episode, type SeriesAnalysis } from "./detect";
+import { analyzeSeries, episodesOf, estimateBaseline, eventWindow, growthRate, type DetectionSettings, type Episode, type SeriesAnalysis } from "./detect";
 
 export interface Analysis {
   dates: string[];
@@ -33,7 +33,12 @@ export function runAnalysis(ds: Dataset, s: DetectionSettings): Analysis {
   }
 
   let coverage: Analysis["coverage"] = null;
-  const inRange = ds.events.filter((ev) => ev.day <= dates[dates.length - 1] && ev.day >= shiftIso(dates[0], -Math.ceil(ev.duration)));
+  const first = Date.parse(dates[0] + "T00:00:00Z");
+  const last = Date.parse(dates[dates.length - 1] + "T00:00:00Z");
+  const inRange = ds.events.filter((ev) => {
+    const [lo, hi] = eventWindow(ev);
+    return ev.factor !== 1 && hi >= first && lo <= last;
+  });
   if (inRange.length) {
     let pairs = 0;
     let detected = 0;
@@ -49,8 +54,4 @@ export function runAnalysis(ds: Dataset, s: DetectionSettings): Analysis {
   }
 
   return { dates, mines, total, episodes, profiles, growth: growthRate(dates, totalValues), coverage };
-}
-
-function shiftIso(iso: string, days: number): string {
-  return new Date(Date.parse(iso + "T00:00:00Z") + days * 86400000).toISOString().slice(0, 10);
 }
