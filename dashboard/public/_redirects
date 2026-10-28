@@ -1,0 +1,2 @@
+# Same-origin proxy to the Google Visualization API (used when the browser blocks the direct call)
+/gsheets/*  https://docs.google.com/spreadsheets/d/:splat  200

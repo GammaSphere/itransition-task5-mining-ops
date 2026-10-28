@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mining Ops Analytics | Weyland-Yutani</title>
+    <meta name="description" content="Daily output, statistics and anomaly detection for Weyland-Yutani mines, read live from the Mining Ops Simulator spreadsheet." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Saira:wdth,wght@112,500;112,600;125,700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 48 32" aria-hidden="true">
+          <path d="M2 4h7l6 16 6-16h6l6 16 6-16h7L34 28h-6l-4-11-4 11h-6z" fill="currentColor" />
+        </svg>
+        <div>
+          <div class="wordmark">WEYLAND-YUTANI</div>
+          <div class="product">Mining operations analytics</div>
+        </div>
+      </div>
+      <div class="source" id="source"></div>
+      <div class="actions">
+        <button class="btn ghost" id="btn-refresh" type="button">Refresh data</button>
+        <label class="switch" title="Re-read the spreadsheet every 30 seconds">
+          <input type="checkbox" id="auto-refresh" />
+          <span>Auto-refresh</span>
+        </label>
+        <button class="btn primary" id="btn-pdf" type="button">Download PDF report</button>
+      </div>
+    </header>
+    <div class="hazard" aria-hidden="true"></div>
+
+    <div class="banner" id="banner" hidden></div>
+
+    <main id="app" class="loading">
+      <section class="readout" id="readout" aria-label="Key figures"></section>
+
+      <div class="workspace">
+        <section class="panel overview" aria-labelledby="h-output">
+          <div class="panel-head">
+            <h2 id="h-output">Daily output</h2>
+            <div class="toolbar">
+              <div class="seg" role="radiogroup" aria-label="Chart type" id="chart-type"></div>
+              <div class="trend-ctl">
+                <label class="check"><input type="checkbox" id="show-trend" /> Trendline</label>
+                <div class="seg small" role="radiogroup" aria-label="Polynomial degree" id="degree"></div>
+              </div>
+            </div>
+          </div>
+          <div class="chips" id="chips" aria-label="Series"></div>
+          <div class="chart" id="chart-main" role="img" aria-label="Daily output by mine"></div>
+          <p class="note" id="main-note"></p>
+        </section>
+
+        <aside class="panel detect" aria-labelledby="h-detect">
+          <h2 id="h-detect">Anomaly detection</h2>
+          <form id="detect-form" autocomplete="off"></form>
+        </aside>
+      </div>
+
+      <section class="panel" aria-labelledby="h-stats">
+        <div class="panel-head">
+          <h2 id="h-stats">Statistics</h2>
+          <p class="hint">Daily output in tonnes. Test columns count the days each test flags.</p>
+        </div>
+        <div class="table-wrap"><table class="data" id="stats-table"></table></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-anoms">
+        <div class="panel-head">
+          <h2 id="h-anoms">Anomalies</h2>
+          <p class="hint" id="anom-summary"></p>
+        </div>
+        <div class="table-wrap"><table class="data" id="anom-table"></table></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-focus">
+        <div class="panel-head">
+          <h2 id="h-focus">Series detail</h2>
+          <div class="tabs" role="tablist" id="focus-tabs"></div>
+        </div>
+        <div class="focus-grid">
+          <div>
+            <div class="chart" id="chart-focus" role="img" aria-label="Selected series with expected level and anomalies"></div>
+            <h3 class="sub">Detection matrix</h3>
+            <div class="chart matrix" id="chart-matrix" role="img" aria-label="Days flagged by each test"></div>
+          </div>
+          <div class="focus-side" id="focus-side"></div>
+        </div>
+      </section>
+
+      <section class="panel two-up" aria-label="Distribution and weekly pattern">
+        <div>
+          <h2>Distribution by mine</h2>
+          <div class="chart" id="chart-box" role="img" aria-label="Box plot of daily output per mine"></div>
+        </div>
+        <div>
+          <h2>Weekly pattern</h2>
+          <div class="chart" id="chart-week" role="img" aria-label="Estimated day-of-week output index per mine"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Data: the <a id="sheet-link" href="#" target="_blank" rel="noopener">Mining Ops Simulator</a> spreadsheet, read through the Google Visualization API. <button class="linklike" id="btn-source" type="button">Use another spreadsheet</button></p>
+      <p>Weyland-Yutani Corporation. Building better worlds.</p>
+    </footer>
+
+    <dialog id="source-dialog">
+      <form method="dialog" id="source-form">
+        <h2>Data source</h2>
+        <p>Paste the link of a copy of the generator spreadsheet. It must be shared as "Anyone with the link".</p>
+        <input id="source-input" type="text" placeholder="https://docs.google.com/spreadsheets/d/..." />
+        <div class="dialog-actions">
+          <button class="btn ghost" value="sample" type="submit">Use offline sample</button>
+          <button class="btn ghost" value="cancel" type="submit">Cancel</button>
+          <button class="btn primary" value="ok" type="submit">Connect</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
