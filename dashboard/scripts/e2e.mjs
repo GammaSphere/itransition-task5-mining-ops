@@ -21,6 +21,7 @@ page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 await page.goto(base, { waitUntil: "networkidle" });
 await page.waitForSelector("#stats-table tbody tr");
 await page.waitForTimeout(1200);
+console.log("source:", (await page.textContent("#source")).trim(), "| banner:", (await page.isVisible("#banner")) ? await page.textContent("#banner") : "hidden");
 await page.screenshot({ path: `${out}/desktop.png`, fullPage: true });
 for (const t of ["bar", "stacked-bar", "stacked-area"]) {
   await page.click(`#chart-type button[data-v="${t}"]`);

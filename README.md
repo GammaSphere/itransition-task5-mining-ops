@@ -7,7 +7,7 @@ A data source and an analytics dashboard for the daily output of Weyland-Yutani 
 
 | | |
 | --- | --- |
-| Generator spreadsheet (anyone with the link can edit) | _link added after publishing_ |
+| Generator spreadsheet (anyone with the link can edit) | https://docs.google.com/spreadsheets/d/1_t8QPGukt2wI2G2bX8K2ehduHw29Y3T2M4tW5DaS83Q/edit?usp=sharing |
 | Dashboard | https://itransition-mining-ops.netlify.app |
 | Source code | https://github.com/GammaSphere/itransition-task5-mining-ops |
 

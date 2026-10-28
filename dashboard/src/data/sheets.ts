@@ -32,7 +32,7 @@ export interface Dataset {
 }
 
 // The public generator spreadsheet (anyone with the link can edit). Override with ?sheet=<id or URL>.
-export const DEFAULT_SHEET_ID = "";
+export const DEFAULT_SHEET_ID = "1_t8QPGukt2wI2G2bX8K2ehduHw29Y3T2M4tW5DaS83Q";
 
 type Cell = { v: unknown; f?: string } | null;
 interface GvizTable {

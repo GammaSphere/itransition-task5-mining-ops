@@ -354,6 +354,7 @@ def build_engine(wb):
     for c in range(3, OUT0 + MAX_MINES + 1):
         ws.column_dimensions[col(c)].width = 10
     ws.column_dimensions["B"].number_format = "yyyy-mm-dd"
+    ws["B3"].number_format = "yyyy-mm-dd"  # the formula cell keeps its own style; spilled cells take the column format
     return ws
 
 
